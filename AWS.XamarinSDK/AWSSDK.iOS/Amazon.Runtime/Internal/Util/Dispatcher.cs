@@ -15,6 +15,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
 #if WIN_RT
 using System.Threading.Tasks;
@@ -34,7 +35,7 @@ namespace Amazon.Runtime.Internal.Util
         private bool isDisposed = false;
         private Action<T> action;
         private Queue<T> queue;
-#if WIN_RT
+#if (WIN_RT || __IOS__)
         private Task backgroundThread;
 #else
         private Thread backgroundThread;
@@ -58,7 +59,7 @@ namespace Amazon.Runtime.Internal.Util
             shouldStop = false;
             this.action = action;
 
-#if WIN_RT
+#if (WIN_RT || __IOS__)
             backgroundThread = new Task(Run);
             backgroundThread.Start();
 #else
