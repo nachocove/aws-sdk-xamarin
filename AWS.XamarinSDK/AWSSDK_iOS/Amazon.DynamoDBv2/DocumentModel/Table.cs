@@ -112,14 +112,22 @@ namespace Amazon.DynamoDBv2.DocumentModel
             throw new InvalidOperationException("Unknown attribute type");
         }
 
-        private void GetTableInfo()
+        private void GetTableInfo(CancellationToken? token = null)
         {
             DescribeTableRequest req = new DescribeTableRequest
             {
                 TableName = TableName
             };
-            req.BeforeRequestEvent += new RequestEventHandler(this.UserAgentRequestEventHandlerSync);
-            DescribeTableResult info = this.DDBClient.DescribeTable(req);
+            DescribeTableResult info;
+            if (!token.HasValue) {
+                req.BeforeRequestEvent += new RequestEventHandler(this.UserAgentRequestEventHandlerSync);
+                info = this.DDBClient.DescribeTable(req);
+            } else {
+                req.BeforeRequestEvent += new RequestEventHandler(this.UserAgentRequestEventHandlerAsync);
+                var task = this.DDBClient.DescribeTableAsync(req, token.Value);
+                task.Wait(token.Value);
+                info = task.Result;
+            }
 
             if (info.Table == null)
             {
@@ -325,6 +333,14 @@ namespace Amazon.DynamoDBv2.DocumentModel
             table.GetTableInfo();
             return table;
         }
+
+        internal static Table LoadTableAsync(IAmazonDynamoDB ddbClient, string tableName, Table.DynamoDBConsumer consumer, DynamoDBEntryConversion conversion, CancellationToken token)
+        {
+            Table table = new Table(ddbClient, tableName, consumer, conversion);
+            table.GetTableInfo(token);
+            return table;
+        }
+
         internal static bool TryLoadTable(IAmazonDynamoDB ddbClient, string tableName, Table.DynamoDBConsumer consumer, DynamoDBEntryConversion conversion, out Table table)
         {
             try
@@ -355,6 +371,11 @@ namespace Amazon.DynamoDBv2.DocumentModel
             return LoadTable(ddbClient, tableName, DynamoDBEntryConversion.CurrentConversion);
         }
 
+        public static Table LoadTableAsync(IAmazonDynamoDB ddbClient, string tableName, CancellationToken token)
+        {
+            return LoadTableAsync(ddbClient, tableName, DynamoDBEntryConversion.CurrentConversion, token);
+        }
+
         /// <summary>
         /// Creates a Table object with the specified name, using the
         /// passed-in client to load the table definition.
@@ -368,6 +389,11 @@ namespace Amazon.DynamoDBv2.DocumentModel
         public static Table LoadTable(IAmazonDynamoDB ddbClient, string tableName, DynamoDBEntryConversion conversion)
         {
             return LoadTable(ddbClient, tableName, DynamoDBConsumer.DocumentModel, conversion);
+        }
+
+        public static Table LoadTableAsync(IAmazonDynamoDB ddbClient, string tableName, DynamoDBEntryConversion conversion, CancellationToken token)
+        {
+            return LoadTableAsync(ddbClient, tableName, DynamoDBConsumer.DocumentModel, conversion, token);
         }
 
         /// <summary>
